@@ -1,4 +1,4 @@
-from Tile import Tile
+from Tile import Tile #imports Tile class from Tile.py
 import random
 from collections import deque
 
