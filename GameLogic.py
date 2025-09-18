@@ -1,23 +1,13 @@
 import os
 import sys
 from Board import Board
-from collections import deque
 
 class GameLogic:
-   
-    #Manages the overall game flow, state transitions, and user actions
-    #for a terminal-based Minesweeper game.
     def __init__(self, width, height, mine_count):
-        #Initializes the game logic with board dimensions and mine count.
-        #Args: width (int): The width of the board, height (int): The height of the board, mine_count (int): The number of mines on the board.
         self.board = Board(width, height, mine_count)
-        self.game_state = "playing"  # Can be "playing", "win", or "loss"
-        self.uncovered_tiles_count = 0
+        self.game_state = "playing"
 
     def handle_input(self, command):
-        #Processes a command-line input from the user.
-        #Args: command (str): The user's input string (e.g., 'uncover A1', 'flag B2').
-        
         if self.game_state != "playing":
             print(f"Game is already over. State: {self.game_state.upper()}")
             return
@@ -31,7 +21,6 @@ class GameLogic:
             print("Invalid command. Please use 'uncover A1' or 'flag B2'.")
             return
 
-        # Parse row and column from a string like "A1"
         try:
             col_char = parts[1][0]
             row_num = int(parts[1][1:])
@@ -58,36 +47,34 @@ class GameLogic:
             print("Invalid coordinate format. Please use 'uncover A1' or 'flag B2'.")
 
     def display_board(self):
-        #Renders the current state of the game board to the terminal.
-        #Clear the terminal for a cleaner display
         os.system('cls' if os.name == 'nt' else 'clear')
 
-        # Print column headers (A-J)
-        print("  " + " ".join([chr(ord('A') + i) for i in range(self.board.width)]))
+        # Print column headers
+        print("   " + " ".join([chr(ord('A') + i) for i in range(self.board.width)]))
         
         # Print the grid
-        for r in range(self.board.height):
-            # Print row numbers
-            sys.stdout.write(f"{r + 1:<2}")
-            for c in range(self.board.width):
-                tile = self.board.make_grid[r][c]
+        for row in range(self.board.height):
+            # Print row numbers with proper formatting
+            sys.stdout.write(f"{row + 1:2} ")
+            for col in range(self.board.width):
+                tile = self.board.make_grid[row][col]
                 
-                if tile.is_revealed:
+                # Check for flagged tiles first
+                if tile.flagged:
+                    sys.stdout.write("F ")
+                elif tile.is_revealed:
                     if tile.is_mine:
-                        if self.game_state == "loss" and (r, c) == self.board.mine_explosion:
-                            sys.stdout.write("💣")
-                        elif self.game_state == "loss":
-                            sys.stdout.write("💥")
+                        # Show the exploded mine differently
+                        if self.game_state == "loss" and (row, col) == self.board.mine_explosion:
+                            sys.stdout.write("💣 ")
                         else:
-                            sys.stdout.write("🔥") # Should not be shown in normal play
+                            sys.stdout.write("💥 ")
                     elif tile.adj_mines > 0:
-                        sys.stdout.write(f" {tile.adj_mines}")
+                        sys.stdout.write(f"{tile.adj_mines} ")
                     else:
-                        sys.stdout.write(" .")
-                elif tile.flagged:
-                    sys.stdout.write(" F")
+                        sys.stdout.write(". ")
                 else:
-                    sys.stdout.write(" #")
+                    sys.stdout.write("# ")
             print()
             
         print("\n--- Status ---")
@@ -97,7 +84,6 @@ class GameLogic:
         print(f"Status: {self.game_state.upper()}")
 
     def run_game(self):
-        #The main game loop for the terminal application.
         self.display_board()
         while self.game_state == "playing":
             try:
@@ -108,10 +94,7 @@ class GameLogic:
                 print("\nExiting game.")
                 self.game_state = "exit"
         
-        # Final board display after game ends
         if self.game_state == "loss":
             print("Game Over! You uncovered a mine.")
-            self.display_board()
         elif self.game_state == "win":
             print("Congratulations! You won the game!")
-            self.display_board()

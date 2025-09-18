@@ -1,14 +1,15 @@
 class Tile:
     def __init__(self):
-        self.is_mine = False #Shows if the tile is a mine
-        self.is_revealed = False #Shows if the status of the tile is revealed to the player or not
-        self.flagged = False #Shows if the tile has been flagged by the player
-        self.adj_mines = 0 #Shows number of adjacent mines to the tile
-        self.full_reveal = False #Shows if the tile has been revealed in the full board reveal
+        self.is_mine = False  # Indicates whether this tile contains a mine
+        self.is_revealed = False  # Indicates whether the tile has been uncovered by the player
+        self.flagged = False  # Indicates whether the player has placed a flag on this tile
+        self.adj_mines = 0  # Count of mines in adjacent tiles (0-8)
+        self.full_reveal = False  # Used for recursive reveal of empty tiles during gameplay
 
     def reset_tile(self):
-        self.is_mine = False #Resets mine/not mine status
-        self.is_revealed = False #Hides tile
-        self.flagged = False #unflags tile
-        self.adj_mines = 0 #Sets adjacent mine count to 0
-        self.full_reveal = False #Resets full board reveal
+        """Resets the tile to its initial state for a new game"""
+        self.is_mine = False  # Remove any mine from this tile
+        self.is_revealed = False  # Hide the tile (cover it up)
+        self.flagged = False  # Remove any flag placed by the player
+        self.adj_mines = 0  # Reset adjacent mine count to zero
+        self.full_reveal = False  # Reset the recursive reveal flag

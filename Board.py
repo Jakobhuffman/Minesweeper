@@ -1,140 +1,171 @@
-from Tile import Tile #imports Tile class from Tile.py
-import random #imports random module to generate random numbers
-from collections import deque #imports deque function from collections module
+from Tile import Tile # Imports Tile class from Tile.py
+import random # Imports random module to generate random numbers
+from collections import deque # Imports deque function from collections module
 
-class Board: #Creates Board class for the game board
-    def __init__(self, w = 10, h = 10, m_count = 10): #initalizes class variables/functions
-        self.width = w #Width of board
-        self.height = h #Height of board
-        self.mine_count = m_count #number of mines on board
-        self.flags_placed = 0 #numbers of flags placed by the player
-        self.make_grid = [[Tile() for K in range(w)] for U in range(h)] #creates game board
-        self.are_mines_placed = False #tracks if mines have been placed on the board
-        self.is_reveal_done = False #tracks if full board reveal is done
-        self.fail_state = False #has player lost
-        self.win_state = False #has player won
-        self.mine_explosion = None #hold location of mine that has exploded
-        self.board_reveal = deque() #function for revealing full board
+class Board: # Creates Board class for the game board
+    def __init__(self, w=10, h=10, m_count=10): # Initializes class variables/functions
+        self.width = w # Width of board
+        self.height = h # Height of board
+        self.mine_count = m_count # Number of mines on board
+        self.flags_placed = 0 # Number of flags placed by the player
+        self.make_grid = [[Tile() for _ in range(w)] for _ in range(h)] # Creates game board grid
+        self.are_mines_placed = False # Tracks if mines have been placed on the board
+        self.fail_state = False # Indicates if player has lost the game
+        self.win_state = False # Indicates if player has won the game
+        self.mine_explosion = None # Holds location of mine that has exploded
+        self.board_reveal = deque() # Queue for revealing tiles during recursive reveal
 
-    
-        
-
-    def board_reset(self, m_count = None):#Function that resets game board
+    def board_reset(self, m_count=None): # Function that resets game board
         if m_count is not None: 
-            self.mine_count = m_count #resets number of mines
-        self.are_mines_placed = False #resets .are_mines_placed flag
-        self.is_reveal_done = False #resets .is_reveal_dones flag
-        self.fail_state = False #resets .fail_state flag
-        self.win_state = False #resets .win_state flag
-        self.flags_placed = 0 #resets number of flags placed
-        self.mine_explosion = None #resets .mine_explosion
-        self.board_reveal.clear() #resets full board reveal function
-        #############################Loop resets each Tile on board
-        for K in range(self.height):
-            for U in range(self.width):
-                self.make_grid[K][U].reset()
-        #############################
+            self.mine_count = m_count # Resets number of mines
+        self.are_mines_placed = False # Resets mines placed flag
+        self.fail_state = False # Resets fail state flag
+        self.win_state = False # Resets win state flag
+        self.flags_placed = 0 # Resets number of flags placed
+        self.mine_explosion = None # Resets mine explosion location
+        self.board_reveal.clear() # Clears the reveal queue
+        
+        # Loop resets each Tile on board
+        for row in range(self.height):
+            for col in range(self.width):
+                self.make_grid[row][col].reset_tile()
 
-    def _find_adj_mines(self, K, U):
-        #Checks adjacent tiles vertically and horizontally
-        for k in (-1, 0, 1): 
-            for u in (-1, 0, 1):
-        #########################################
-                if u == 0 and k == 0: #does not check case of current space
+    def _find_adjacent_tiles(self, row, col):
+        """Finds all valid adjacent tiles to the given coordinates"""
+        adjacent = []
+        # Check all 8 surrounding positions
+        for dr in (-1, 0, 1):
+            for dc in (-1, 0, 1):
+                if dr == 0 and dc == 0: # Skip the current tile itself
                     continue
-                a = K + k #Find adjacent X coordinate
-                n = U + u #Find adjacent Y coordinate
-                if 0 <= a < self.width and 0 <= n < self.height:#Make sure target is within board boundaries
-                    yield a, n #Return valid adjacent tile coordinates
+                new_row, new_col = row + dr, col + dc
+                # Make sure target is within board boundaries
+                if 0 <= new_row < self.height and 0 <= new_col < self.width:
+                    adjacent.append((new_row, new_col))
+        return adjacent
 
-    def set_mines(self, start): #start should be safe
-        c1, c2 = start #set starting point to tile that the player clicked first
-        safety_zone = {(c1, c2)} #set zone where mine should NOT be placed to first tile clicked
-        for p1, p2 in self._find_adj_mines(c1, c2): #place adjacent tiles into safety zone
-            safety_zone.add((p1, p2))
-        global_coordinates = [(K, U) for U in range(self.height) for K in range(self.width) if (K, U) not in safety_zone] #create list of coordinates that are not safe
-        mine_count_total = min(self.mine_count, len(global_coordinates)) #make sure total mines placed does not exceed limit
-        mine_locations = random.sample(global_coordinates, mine_count_total) #Randomly choose spaces for the mines to be placed
-        for (a, n) in mine_locations: #place mines at randomly generated locations
-            self.make_grid[a][n].is_mine = True
-            #########################################increment adjacent mines counter for adjacent tiles
-        for (a, n) in mine_locations: 
-            for j, k in self._find_adj_mines(a, n):
-                self.make_grid[j][k].adj_mines += 1
-            ###########################################
-    def show_tile(self, K, U):
-        if self.fail_state or self.win_state: #Check if game is over
+    def set_mines(self, start): # Start should be a safe tile (first click)
+        safe_row, safe_col = start # Set starting point to tile that the player clicked first
+        safety_zone = {(safe_row, safe_col)} # Set zone where mines should NOT be placed
+        
+        # Add adjacent tiles to safety zone (guarantee safe area around first click)
+        for adj_row, adj_col in self._find_adjacent_tiles(safe_row, safe_col):
+            safety_zone.add((adj_row, adj_col))
+        
+        # Create list of coordinates that are not in safety zone
+        possible_locations = []
+        for row in range(self.height):
+            for col in range(self.width):
+                if (row, col) not in safety_zone:
+                    possible_locations.append((row, col))
+        
+        # Make sure total mines placed does not exceed available spaces
+        mine_count_total = min(self.mine_count, len(possible_locations))
+        # Randomly choose spaces for the mines to be placed
+        mine_locations = random.sample(possible_locations, mine_count_total)
+        
+        # Place mines at randomly generated locations
+        for row, col in mine_locations:
+            self.make_grid[row][col].is_mine = True
+        
+        # Calculate adjacent mine counts for all non-mine tiles
+        for row in range(self.height):
+            for col in range(self.width):
+                if not self.make_grid[row][col].is_mine:
+                    count = 0
+                    for adj_row, adj_col in self._find_adjacent_tiles(row, col):
+                        if self.make_grid[adj_row][adj_col].is_mine:
+                            count += 1
+                    self.make_grid[row][col].adj_mines = count
+
+    def show_tile(self, row, col):
+        """Reveals a tile and handles game logic for mine detection and recursive reveal"""
+        if self.fail_state or self.win_state: # Check if game is already over
             return None
-        space = self.make_grid[K][U] #Get tile at (K, U)
-        if not self.are_mines_placed: #Place mines if they have not been placed
-            self.set_mines((K, U))
+            
+        tile = self.make_grid[row][col] # Get tile at specified coordinates
+        
+        if not self.are_mines_placed: # Place mines if they haven't been placed yet
+            self.set_mines((row, col))
             self.are_mines_placed = True
-        if space.flagged or space.is_revealed or space.full_reveal: #Do nothing if tile is flagged, revealed, or if full reveal is in progress
+            
+        if tile.flagged or tile.is_revealed: # Do nothing if tile is flagged or already revealed
             return None
-        if space.is_mine: #Trigger fail state if tile is mine
-            self.mine_explosion = (K, U) #Store location of mine that was clicked
-            self.fail_state = True #Set fail_state to True
-            space.is_revealed = True #Set revealed flag to true
-            for r in self.make_grid: # Reveal all tiles on board
-                for c in r:
-                    if c.is_mine:
-                        c.is_revealed = True
-
+            
+        if tile.is_mine: # Player clicked on a mine - game over
+            self.mine_explosion = (row, col) # Store location of mine that was clicked
+            self.fail_state = True # Set fail state to True
+            # Reveal all mines on the board
+            for r in range(self.height):
+                for c in range(self.width):
+                    if self.make_grid[r][c].is_mine:
+                        self.make_grid[r][c].is_revealed = True
             return 'game over'
         
-        space.is_revealed = True #show that tile is safe
-        if space.adj_mines == 0: #Case for if tile has no adjacent mines
-            for j, k in self._find_adj_mines(K, U): #Iterate through adjacent tiles
-                adj = self.make_grid[k][j] #Get adjacent tile
-                if (not adj.is_revealed) and (not adj.flagged) and (not adj.full_reveal): #only handle adjacent tiles that have not been reavealed or flagged
-                    if not adj.is_mine:
-                        adj.full_reveal = True #
-                        self.board_reveal.append((j, k)) #Add tile to queue to be revealed
-                        self.is_reveal_done = True 
+        tile.is_revealed = True # Reveal the tile (it's safe)
+        
+        # If tile has no adjacent mines, recursively reveal adjacent tiles
+        if tile.adj_mines == 0:
+            self._reveal_adjacent_tiles(row, col)
 
-        if self.win_check(): #Check if action wins game
+        if self.win_check(): # Check if this action wins the game
             return 'Win!'
         return None
 
-    def anime_show(self): #reveals the full board
-        if not self.board_reveal: #checks that the game is over to reveal board
-            return
-        K, U = self.board_reveal.popleft() #return next tile that is set to be revealed
-        space = self.make_grid[U][K] #Get tile at coordinates (K, U)
-        space.is_revealed = True #set tile's is_revealed flag to True
-        space.full_reveal = False #set tile's full_reveal flag to False so that it is done when it comes to full board reveal
-        if space.adj_mines == 0: #if tile has no adjacent mines reveal neighbors
-            for k, u in self._find_adj_mines(K, U): #check valid adjacent tile coordinates
-                adj = self.make_grid[u][k] #get adjacent tile
-                if (not adj.is_revealed) and (not adj.flagged) and (not adj.full_reveal): #check adjacent tile only if it is not already revealed, not flagged, and if full board reveal has not happened
-                    if not adj.is_mine: #if adjacent tile is not mine reveal it
-                        adj.full_reveal = True
-                        self.board_reveal.append((k, u))
-        if not self.board_reveal: #If there are not any more spaces to reveal, finish revealing
-            self.is_reveal_done = False
-            self.win_check()
+    def _reveal_adjacent_tiles(self, start_row, start_col):
+        """Recursively reveals adjacent tiles for empty cells using BFS algorithm"""
+        queue = deque([(start_row, start_col)])
+        visited = set([(start_row, start_col)])
+        
+        while queue:
+            current_row, current_col = queue.popleft()
+            current_tile = self.make_grid[current_row][current_col]
+            
+            # Only process empty cells (adj_mines == 0)
+            if current_tile.adj_mines == 0:
+                # Reveal all adjacent cells
+                for adj_row, adj_col in self._find_adjacent_tiles(current_row, current_col):
+                    if (adj_row, adj_col) not in visited:
+                        visited.add((adj_row, adj_col))
+                        adj_tile = self.make_grid[adj_row][adj_col]
+                        
+                        # Only reveal if not flagged, not a mine, and not already revealed
+                        if not adj_tile.flagged and not adj_tile.is_mine and not adj_tile.is_revealed:
+                            adj_tile.is_revealed = True
+                            
+                            # If this adjacent tile is also empty, add to queue for further processing
+                            if adj_tile.adj_mines == 0:
+                                queue.append((adj_row, adj_col))
 
-    def flag_on_off(self, K, U): #toggles tile flag on/off
-        if self.fail_state or self.win_state: #function does not run if game is over
+    def flag_on_off(self, row, col):
+        """Toggles flag on/off for a tile"""
+        if self.fail_state or self.win_state: # Function doesn't run if game is over
             return
-        space = self.make_grid[U][K] #sets space that function will operate on
-        if space.is_revealed: #cannot flag revealed space
+            
+        tile = self.make_grid[row][col] # Get the target tile
+        
+        if tile.is_revealed: # Cannot flag revealed tiles
             return
-        if space.flagged: #Turns off flag
-            space.flagged = False
-            self.flags_placed -= 1 #decrements number of flags placed
-        else: #Turns on flag
-            if self.flags_placed < self.mine_count: #can only flag tiles if total flags placed is less than the number of mines
-                space.flagged = True
-                self.flags_placed += 1 #increments number of flags placed
-    def win_check(self): #Checks if the player has won the game
-        if self.fail_state: #checks if the player has lost the game, if so return False
+            
+        if tile.flagged: # Remove flag
+            tile.flagged = False
+            self.flags_placed -= 1 # Decrement number of flags placed
+        else: # Add flag
+            if self.flags_placed < self.mine_count: # Only flag if haven't reached mine count
+                tile.flagged = True
+                self.flags_placed += 1 # Increment number of flags placed
+                
+    def win_check(self):
+        """Checks if the player has won the game by revealing all non-mine tiles"""
+        if self.fail_state: # Player already lost, cannot win
             return False
-        ##############################Checks if any tiles are not revealed, if so the game is not over
-        for r in self.make_grid: 
-            for c in r:
-                if not c.is_mine and not c.is_revealed:
-                    return False
-        ##############################
-        self.win_state = True #Sets win state to true
+            
+        # Check if any non-mine tiles are still hidden
+        for row in range(self.height):
+            for col in range(self.width):
+                tile = self.make_grid[row][col]
+                if not tile.is_mine and not tile.is_revealed:
+                    return False # Game not won yet
+                    
+        self.win_state = True # All non-mine tiles revealed - player wins!
         return True
